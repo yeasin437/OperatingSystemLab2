@@ -1,38 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
 
-struct Node
+struct node
 {
     int data;
-    struct Node *prev;
-    struct Node *next;
+    struct node *prev;
+    struct node *next;
 };
 
-struct Node *head = NULL;
+struct node *head = NULL;
 
-struct Node *createNode(int data)
+/* Insert at the end */
+void insertAtEnd(int data)
 {
-    struct Node *newNode = (struct Node *)malloc(sizeof(struct Node));
+    struct node *newNode;
+    newNode = (struct node *)malloc(sizeof(struct node));
 
     if (newNode == NULL)
     {
         printf("Memory allocation failed.\n");
-        exit(1);
+        return;
     }
 
     newNode->data = data;
-    newNode->prev = NULL;
     newNode->next = NULL;
-
-    return newNode;
-}
-
-void insert(int data)
-{
-    struct Node *newNode = createNode(data);
+    newNode->prev = NULL;
 
     if (head == NULL)
     {
@@ -40,8 +35,7 @@ void insert(int data)
         return;
     }
 
-    struct Node *temp = head;
-
+    struct node *temp = head;
     while (temp->next != NULL)
     {
         temp = temp->next;
@@ -51,92 +45,134 @@ void insert(int data)
     newNode->prev = temp;
 }
 
-void insertAfter(int prevData, int newData)
+/* Insert after a given node value */
+void insertAfter(int data, int previous)
 {
-    struct Node *temp = head;
+    struct node *newNode;
+    newNode = (struct node *)malloc(sizeof(struct node));
 
-    while (temp != NULL && temp->data != prevData)
+    if (newNode == NULL)
     {
-        temp = temp->next;
-    }
-
-    if (temp == NULL)
-    {
-        printf("Node %d not found.\n", prevData);
+        printf("Memory allocation failed.\n");
         return;
     }
 
-    struct Node *newNode = createNode(newData);
+    newNode->data = data;
+    newNode->next = NULL;
+    newNode->prev = NULL;
 
-    newNode->next = temp->next;
-    newNode->prev = temp;
+    struct node *currentNode = head;
 
-    if (temp->next != NULL)
+    while (currentNode != NULL && currentNode->data != previous)
     {
-        temp->next->prev = newNode;
+        currentNode = currentNode->next;
     }
 
-    temp->next = newNode;
+    if (currentNode == NULL)
+    {
+        printf("Previous node %d not found.\n", previous);
+        free(newNode);
+        return;
+    }
+
+    newNode->next = currentNode->next;
+    newNode->prev = currentNode;
+
+    if (currentNode->next != NULL)
+    {
+        currentNode->next->prev = newNode;
+    }
+
+    currentNode->next = newNode;
 }
 
-void deleteNode(int data)
+/* Delete at head */
+void deleteAtHead()
 {
-    struct Node *temp = head;
-
-    while (temp != NULL && temp->data != data)
+    if (head == NULL)
     {
-        temp = temp->next;
-    }
-
-    if (temp == NULL)
-    {
-        printf("Node %d not found.\n", data);
         return;
     }
 
-    if (temp->prev != NULL)
-    {
-        temp->prev->next = temp->next;
-    }
-    else
-    {
-        head = temp->next;
-        if (head != NULL)
-        {
-            head->prev = NULL;
-        }
-    }
+    struct node *temp = head;
+    head = head->next;
 
-    if (temp->next != NULL)
+    if (head != NULL)
     {
-        temp->next->prev = temp->prev;
+        head->prev = NULL;
     }
 
     free(temp);
 }
 
-void printForward()
+/* Delete by value */
+void deleteByValue(int data)
 {
-    struct Node *temp = head;
+    struct node *currentNode = head;
 
-    printf("Linked list in forward order: ");
+    if (currentNode == NULL)
+    {
+        printf("List is empty.\n");
+        return;
+    }
+
+    if (currentNode->data == data)
+    {
+        deleteAtHead();
+        return;
+    }
+
+    while (currentNode != NULL && currentNode->data != data)
+    {
+        currentNode = currentNode->next;
+    }
+
+    if (currentNode == NULL)
+    {
+        printf("Node %d not found.\n", data);
+        return;
+    }
+
+    if (currentNode->prev != NULL)
+    {
+        currentNode->prev->next = currentNode->next;
+    }
+
+    if (currentNode->next != NULL)
+    {
+        currentNode->next->prev = currentNode->prev;
+    }
+
+    free(currentNode);
+}
+
+/* Print forward */
+void printList()
+{
+    struct node *temp = head;
+
+    if (temp == NULL)
+    {
+        printf("List is empty.\n");
+        return;
+    }
 
     while (temp != NULL)
     {
         printf("%d ", temp->data);
         temp = temp->next;
     }
-
     printf("\n");
 }
 
+/* Print reverse */
 void printReverse()
 {
-    struct Node *temp = head;
+    struct node *temp = head;
 
     if (temp == NULL)
     {
-        printf("Linked list in reverse order: \n");
+        printf("List is empty.\n");
         return;
     }
 
@@ -144,74 +180,78 @@ void printReverse()
     {
         temp = temp->next;
     }
-
-    printf("Linked list in reverse order: ");
 
     while (temp != NULL)
     {
         printf("%d ", temp->data);
         temp = temp->prev;
     }
-
     printf("\n");
 }
 
-void freeList()
-{
-    struct Node *temp = head;
-    struct Node *nextNode;
-
-    while (temp != NULL)
-    {
-        nextNode = temp->next;
-        free(temp);
-        temp = nextNode;
-    }
-}
-
-int main(int argc, char *argv[])
+/* Build list from file using open() and read() */
+void buildListFromFile(char *filename)
 {
     int fd;
     char buffer[1024];
     int bytesRead;
-    char *token;
-    int choice;
+    char numberBuffer[50];
+    int i, j = 0;
 
-    if (argc < 2)
-    {
-        printf("Usage: %s <filename>\n", argv[0]);
-        return 1;
-    }
-
-    fd = open(argv[1], O_RDONLY);
+    fd = open(filename, O_RDONLY);
     if (fd < 0)
     {
-        printf("Error opening file.\n");
-        return 1;
+        printf("Unable to open file.\n");
+        exit(1);
     }
 
     bytesRead = read(fd, buffer, sizeof(buffer) - 1);
     if (bytesRead < 0)
     {
-        printf("Error reading file.\n");
+        printf("Unable to read file.\n");
         close(fd);
-        return 1;
+        exit(1);
     }
 
     buffer[bytesRead] = '\0';
     close(fd);
 
-    token = strtok(buffer, " \n\t\r");
-    while (token != NULL)
+    for (i = 0; i <= bytesRead; i++)
     {
-        insert(atoi(token));
-        token = strtok(NULL, " \n\t\r");
+        if (buffer[i] == ' ' || buffer[i] == '\n' || buffer[i] == '\t' || buffer[i] == '\0')
+        {
+            if (j > 0)
+            {
+                numberBuffer[j] = '\0';
+                insertAtEnd(atoi(numberBuffer));
+                j = 0;
+            }
+        }
+        else
+        {
+            numberBuffer[j] = buffer[i];
+            j++;
+        }
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    int choice;
+    int data, previous;
+
+    if (argc != 2)
+    {
+        printf("Usage: %s input.txt\n", argv[0]);
+        return 1;
     }
 
-    printf("Initial linked list:\n");
-    printForward();
+    buildListFromFile(argv[1]);
 
-    do
+    printf("Initial linked list:\n");
+    printList();
+
+    while (1)
     {
         printf("\nWhat else do you want?\n");
         printf("To insert a new node, press 1\n");
@@ -223,47 +263,43 @@ int main(int argc, char *argv[])
 
         if (choice == 1)
         {
-            int num;
-
             printf("Insert your node number: ");
-            scanf("%d", &num);
-
-            insert(num);
-            printForward();
+            scanf("%d", &data);
+            insertAtEnd(data);
+            printf("Updated linked list:\n");
+            printList();
         }
         else if (choice == 2)
         {
-            int newNum, prevNum;
-
             printf("Insert your new node number and previous node number: ");
-            scanf("%d %d", &newNum, &prevNum);
-
-            insertAfter(prevNum, newNum);
-            printForward();
+            scanf("%d %d", &data, &previous);
+            insertAfter(data, previous);
+            printf("Updated linked list:\n");
+            printList();
         }
         else if (choice == 3)
         {
-            int num;
-
             printf("Insert the node number you want to delete: ");
-            scanf("%d", &num);
-
-            deleteNode(num);
-            printForward();
+            scanf("%d", &data);
+            deleteByValue(data);
+            printf("Updated linked list:\n");
+            printList();
         }
         else if (choice == 0)
         {
-            printForward();
+            printf("Linked list in forward order:\n");
+            printList();
+
+            printf("Linked list in reverse order:\n");
             printReverse();
+
+            break;
         }
         else
         {
-            printf("Invalid choice.\n");
+            printf("Invalid choice. Try again.\n");
         }
-
-    } while (choice != 0);
-
-    freeList();
+    }
 
     return 0;
 }
